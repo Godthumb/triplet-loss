@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+# borrow from https://github.com/alfonmedela/triplet-loss-pytorch/blob/master/loss_functions/triplet_loss.py
 def pairwise_distance_torch(embeddings, device):
     """Computes the pairwise distance matrix with numerical stability.
     output[i, j] = || feature[i, :] - feature[j, :] ||_2
