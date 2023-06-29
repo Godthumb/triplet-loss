@@ -13,18 +13,20 @@ import torch.nn.functional as F
 import argparse
 from dataset import TripletDataSet
 from torchsampler import ImbalancedDatasetSampler
+from model import resnet18
 
 def opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data-path', type=str, default='/data/path')
     parser.add_argument('--arch', type=str, default='resnet18_triplet')
     parser.add_argument('--resume', type=str, default='')
-    parser.add_argument('--num_classes', type=int, default=1000)
+    parser.add_argument('--num-classes', type=int, default=1000)
     parser.add_argument('--batch-size', type=int, default=32)
     parser.add_argument('--data-loader-workers', type=int, default=6)
     parser.add_argument('--lr', type=float, default=0.0001)
-    parser.add_argument('--start_epoch', type=int, default=0)
+    parser.add_argument('--start-epoch', type=int, default=0)
     parser.add_argument('--epochs', type=int, default=40)
+    parser.add_argument('--device', type=str, default='cuda')
     args = parser.parse_args()
     return args
 
@@ -37,18 +39,16 @@ class L2_norm(nn.Module):
 
 def main(opt):
     best_loss = 1000
-
     # create model
     print("=> creating model '{}'".format(opt.arch))
     if opt.arch.lower().startswith('resnet'):
-        # a customized resnet model with last feature map size as 14x14 for better class activation mapping
-        model = model.resnet18(pretrained=True, num_classes=1000)
+        model = resnet18(pretrained=True, num_classes=1000)
         model.avgpool = nn.AdaptiveAvgPool2d(1)
         model.fc = nn.Sequential(nn.Linear(512, 128, bias=False), L2_norm())
     else:
         raise ValueError('Wrong arch')
 
-    model = model.cuda()
+    model = model.to(opt.device)
     print (model)
 
     # optionally resume from a checkpoint
@@ -96,7 +96,7 @@ def main(opt):
                                              num_workers=6)   
 
     # define loss function (criterion) and pptimizer
-    criterion_triple = TripletLoss(device='cuda')
+    criterion_triple = TripletLoss(device=opt.device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=opt.lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
 
@@ -114,7 +114,7 @@ def main(opt):
 
         # remember best prec@1 and save checkpoint
         is_best = val_loss < best_loss
-        best_loss = max(val_loss, best_loss)
+        best_loss = min(val_loss, best_loss)
         save_checkpoint({
             'epoch': epoch + 1,
             'arch': opt.arch,
@@ -134,7 +134,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
     end = time.time()
     for i, sample in enumerate(train_loader):
         input, target = sample
-        input_var, target_var = input.cuda(), target.cuda()
+        input_var, target_var = input.to(opt.device), target.to(opt.device)
         # measure data loading time
         data_time.update(time.time() - end)
 
@@ -169,15 +169,14 @@ def validate(val_loader, model, criterion, this_epoch, epochs):
 
     end = time.time()
     for i, (input, target) in enumerate(val_loader):
-        input_var, target_var = input.cuda(), target.cuda()
+        input_var, target_var = input.to(opt.device), target.to(opt.device)
         with torch.no_grad():
             # compute output
             output = model(input_var)
             loss = criterion(output, target_var)
 
-        # measure accuracy and record loss
+        # record loss
         losses.update(loss.item(), input_var.size(0))
-  
         # measure elapsed time
         batch_time.update(time.time() - end)
         end = time.time()
@@ -194,11 +193,8 @@ def validate(val_loader, model, criterion, this_epoch, epochs):
 
 
 def save_checkpoint(state, is_best, epoch, filename='checkpoint.pth'):
-    # torch.save(state, filename + '_latest.pth')
     if is_best:
-        torch.save(state, filename + '_best.pth')
-
-
+        torch.save(state, filename + '_{}_best.pth'.format(epoch))
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
