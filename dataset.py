@@ -5,12 +5,12 @@ from PIL import Image
 
 
 class TripletDataSet(Dataset):
-    _CLASSES_MAP = {'nomal':1, 'arms': 0}  # follow YOLO cls
+    _CLASSES_MAP = {'Cat':1, 'Dog': 0}  # follow YOLO cls
     def __init__(self, root_path, transform=None):
         self.database = []
         for cls in os.listdir(root_path):
             # file xxxx.bmp
-            for im_file in glob.glob(os.path.join(root_path, cls) + '/*.bmp'):
+            for im_file in glob.glob(os.path.join(root_path, cls) + '/*.jpg'):
                 self.database.append((im_file, TripletDataSet._CLASSES_MAP[cls]))
         self.transform = transform
 

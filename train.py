@@ -17,16 +17,17 @@ from model import resnet18
 
 def opt():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data-path', type=str, default='/data/path')
+    parser.add_argument('--data-path', type=str, default=r'D:\BaiduNetdiskDownload\catsdogs')
     parser.add_argument('--arch', type=str, default='resnet18_triplet')
     parser.add_argument('--resume', type=str, default='')
     parser.add_argument('--num-classes', type=int, default=1000)
     parser.add_argument('--batch-size', type=int, default=32)
-    parser.add_argument('--n-workers', type=int, default=6)
+    parser.add_argument('--n-workers', type=int, default=0)
     parser.add_argument('--lr', type=float, default=0.0001)
     parser.add_argument('--start-epoch', type=int, default=0)
     parser.add_argument('--epochs', type=int, default=40)
     parser.add_argument('--device', type=str, default='cuda')
+    parser.add_argument('--evaluate', type=bool, default=False)
     args = parser.parse_args()
     return args
 
@@ -49,7 +50,7 @@ def main(opt):
         raise ValueError('Wrong arch')
 
     model = model.to(opt.device)
-    print (model)
+    # print (model)
 
     # optionally resume from a checkpoint
     if opt.resume:
@@ -65,7 +66,7 @@ def main(opt):
         start_epoch = opt.start_epoch
     # Data loading code
     traindir = os.path.join(opt.data_path, 'train')
-    valdir = os.path.join(opt.data_path, 'val')
+    valdir = os.path.join(opt.data_path, 'test')
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
     tr_Transform = transforms.Compose([
@@ -77,12 +78,13 @@ def main(opt):
                                       # transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
                                       transforms.ToTensor(),
                                       normalize,])
+    
     train_dataset = TripletDataSet(traindir, tr_Transform)
     train_loader = torch.utils.data.DataLoader(train_dataset, 
-                                               batch_size=opt.batch_size, 
-                                               shuffle=False,
                                                sampler=ImbalancedDatasetSampler(train_dataset),
-                                               num_workers=opt.n_workers)
+                                               batch_size=opt.batch_size,
+                                               num_workers=opt.n_workers
+                                               )
 
     val_transform = transforms.Compose([
                                         transforms.Resize(256),
@@ -90,10 +92,11 @@ def main(opt):
                                         transforms.ToTensor(),
                                         normalize,])
     val_dataset = TripletDataSet(valdir, val_transform)
+    # print('len', len(val_dataset))
     val_loader = torch.utils.data.DataLoader(val_dataset, 
                                              batch_size=len(val_dataset), 
-                                             shuffle=False,
-                                             num_workers=opt.n_workers)   
+                                             num_workers=opt.n_workers
+                                             )   
 
     # define loss function (criterion) and pptimizer
     criterion_triple = TripletLoss(device=opt.device)
@@ -107,10 +110,10 @@ def main(opt):
     for epoch in range(start_epoch, opt.epochs):
         adjust_learning_rate(optimizer, epoch, opt.lr)
         # train for one epoch
-        train(train_loader, model, criterion_triple, optimizer, epoch)
+        train(train_loader, model, criterion_triple, optimizer, epoch, opt.device)
 
         # evaluate on validation set
-        val_loss = validate(val_loader, model, criterion_triple, epoch, opt.epochs)
+        val_loss = validate(val_loader, model, criterion_triple, epoch, opt.epochs, opt.device)
 
         # remember best prec@1 and save checkpoint
         is_best = val_loss < best_loss
@@ -122,7 +125,7 @@ def main(opt):
             'best_loss': best_loss,
         }, is_best, epoch, opt.arch.lower())
 
-def train(train_loader, model, criterion, optimizer, epoch):
+def train(train_loader, model, criterion, optimizer, epoch, device):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -133,12 +136,12 @@ def train(train_loader, model, criterion, optimizer, epoch):
     end = time.time()
     for i, sample in enumerate(train_loader):
         input, target = sample
-        input_var, target_var = input.to(opt.device), target.to(opt.device)
+        input_var, target_var = input.to(device), target.to(device)
         # measure data loading time
         data_time.update(time.time() - end)
 
         output = model(input_var)  # output is feature
-        loss = criterion(target_var, output)
+        loss = criterion(output, target_var)
         losses.update(loss.item(), input.size(0))
 
         # compute gradient and do SGD step
@@ -159,7 +162,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
             epoch, i, train_loader_length, batch_time=batch_time,
             data_time=data_time, loss=losses))
 
-def validate(val_loader, model, criterion, this_epoch, epochs):
+def validate(val_loader, model, criterion, this_epoch, epochs, device):
     batch_time = AverageMeter()
     losses = AverageMeter()
     # switch to evaluate mode
@@ -167,7 +170,7 @@ def validate(val_loader, model, criterion, this_epoch, epochs):
 
     end = time.time()
     for i, (input, target) in enumerate(val_loader):
-        input_var, target_var = input.to(opt.device), target.to(opt.device)
+        input_var, target_var = input.to(device), target.to(device)
         with torch.no_grad():
             # compute output
             output = model(input_var)
@@ -191,7 +194,8 @@ def validate(val_loader, model, criterion, this_epoch, epochs):
 
 def save_checkpoint(state, is_best, epoch, filename='checkpoint.pth'):
     if is_best:
-        torch.save(state, filename + '_{}_best.pth'.format(epoch))
+        torch.save(state, filename + '_best.pth')
+        print('save best at {}'.format(epoch))
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""

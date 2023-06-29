@@ -5,7 +5,7 @@ from sklearn.ensemble import RandomForestClassifier
 
 if __name__ == '__main__':
 
-    root = 'embeddings/'
+    root = './'
 
     x_train, y_train = np.load(root + 'x_train.npy'), np.load(root + 'y_train.npy')
     x_val, y_val = np.load(root + 'x_val.npy'), np.load(root + 'y_val.npy')
