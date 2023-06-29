@@ -48,8 +48,6 @@ def main(opt):
     else:
         raise ValueError('Wrong arch')
 
-    # a customized resnet model with last feature map size as 14x14 for better class activation mapping
-
     model = model.cuda()
     print (model)
 
@@ -219,7 +217,6 @@ class AverageMeter(object):
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
-
 
 def adjust_learning_rate(optimizer, epoch, lr):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
