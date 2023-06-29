@@ -122,7 +122,6 @@ def main(opt):
             'best_loss': best_loss,
         }, is_best, epoch, opt.arch.lower())
 
-
 def train(train_loader, model, criterion, optimizer, epoch):
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -160,7 +159,6 @@ def train(train_loader, model, criterion, optimizer, epoch):
             epoch, i, train_loader_length, batch_time=batch_time,
             data_time=data_time, loss=losses))
 
-
 def validate(val_loader, model, criterion, this_epoch, epochs):
     batch_time = AverageMeter()
     losses = AverageMeter()
@@ -190,7 +188,6 @@ def validate(val_loader, model, criterion, this_epoch, epochs):
         ))
 
     return losses.avg
-
 
 def save_checkpoint(state, is_best, epoch, filename='checkpoint.pth'):
     if is_best:
