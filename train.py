@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 import argparse
 import os
-import shutil
 import time
 import torch
 import torch.nn as nn
@@ -13,17 +12,17 @@ from loss import TripletLoss
 import torch.nn.functional as F
 import argparse
 from dataset import TripletDataSet
+from torchsampler import ImbalancedDatasetSampler
 
 def opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data-path', type=str, default='/data/path')
-    parser.add_argument('--arch', type=str, default='/data/path')
+    parser.add_argument('--arch', type=str, default='resnet18_triplet')
     parser.add_argument('--resume', type=str, default='')
-    parser.add_argument('--num_classes', type=int, default=10)
-    parser.add_argument('--batch-size', type=int, default=10)
+    parser.add_argument('--num_classes', type=int, default=1000)
+    parser.add_argument('--batch-size', type=int, default=32)
     parser.add_argument('--data-loader-workers', type=int, default=6)
     parser.add_argument('--lr', type=float, default=0.0001)
-    parser.add_argument('--print_freq', type=int, default=10)
     parser.add_argument('--start_epoch', type=int, default=0)
     parser.add_argument('--epochs', type=int, default=40)
     args = parser.parse_args()
@@ -63,9 +62,9 @@ def main(opt):
             model.load_state_dict(checkpoint['state_dict'])
             print("=> loaded checkpoint '{}' (epoch {})"
                   .format(opt.resume, checkpoint['epoch']))
-        else:
-            print("=> no checkpoint found at '{}'".format(opt.resume))
-            start_epoch = opt.start_epoch
+    else:
+        print("=> no checkpoint found, initing")
+        start_epoch = opt.start_epoch
     # Data loading code
     traindir = os.path.join(opt.data_path, 'train')
     valdir = os.path.join(opt.data_path, 'val')
@@ -83,7 +82,8 @@ def main(opt):
     train_dataset = TripletDataSet(traindir, tr_Transform)
     train_loader = torch.utils.data.DataLoader(train_dataset, 
                                                batch_size=opt.batch_size, 
-                                               shuffle=True,
+                                               shuffle=False,
+                                               sampler=ImbalancedDatasetSampler(train_dataset),
                                                num_workers=6)
 
     val_transform = transforms.Compose([
@@ -98,21 +98,21 @@ def main(opt):
                                              num_workers=6)   
 
     # define loss function (criterion) and pptimizer
-    criterion_triple = TripletLoss(device='cuda: 0')
+    criterion_triple = TripletLoss(device='cuda')
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
+    optimizer = torch.optim.Adam(model.parameters(), lr=opt.lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
 
     if opt.evaluate:
         validate(val_loader, model, criterion_triple)
         return
 
     for epoch in range(start_epoch, opt.epochs):
-        adjust_learning_rate(optimizer, epoch)
+        adjust_learning_rate(optimizer, epoch, opt.lr)
         # train for one epoch
         train(train_loader, model, criterion_triple, optimizer, epoch)
 
         # evaluate on validation set
-        val_loss = validate(val_loader, model, criterion_triple)
+        val_loss = validate(val_loader, model, criterion_triple, epoch, opt.epochs)
 
         # remember best prec@1 and save checkpoint
         is_best = val_loss < best_loss
@@ -129,8 +129,6 @@ def train(train_loader, model, criterion, optimizer, epoch):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
-    # top1 = AverageMeter()
-    # top5 = AverageMeter()
 
     # switch to train mode
     model.train()
@@ -143,9 +141,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
         data_time.update(time.time() - end)
 
         output = model(input_var)  # output is feature
-      
         loss = criterion(target_var, output)
-     
         losses.update(loss.item(), input.size(0))
 
         # compute gradient and do SGD step
@@ -158,16 +154,16 @@ def train(train_loader, model, criterion, optimizer, epoch):
         end = time.time()
 
    
-    print('Epoch: [{0}][{1}/{2}]\t'
-            'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-            'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-            'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-            .format(
-        epoch, i, train_loader_length, batch_time=batch_time,
-        data_time=data_time, loss=losses))
+        print('Epoch: [{0}][{1}/{2}]\t'
+                'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                .format(
+            epoch, i, train_loader_length, batch_time=batch_time,
+            data_time=data_time, loss=losses))
 
 
-def validate(val_loader, model, criterion):
+def validate(val_loader, model, criterion, this_epoch, epochs):
     batch_time = AverageMeter()
     losses = AverageMeter()
     # switch to evaluate mode
@@ -190,21 +186,20 @@ def validate(val_loader, model, criterion):
 
         
     print('Test: [{0}/{1}]\t'
-            'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-            'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+            'Time {batch_time.avg:.3f}\t'
+            'Loss {loss.avg:.4f}\t'
         .format(
-        i, len(val_loader), batch_time=batch_time, loss=losses,
+        this_epoch, epochs, batch_time=batch_time, loss=losses,
         ))
 
     return losses.avg
 
 
 def save_checkpoint(state, is_best, epoch, filename='checkpoint.pth'):
-    if epoch != 0:
-        os.rename(filename + '_latest.pth', filename + '_%d.pth' % (epoch))
-    torch.save(state, filename + '_latest.pth')
+    # torch.save(state, filename + '_latest.pth')
     if is_best:
-        shutil.copyfile(filename + '_latest.pth', filename + '_best.pth')
+        torch.save(state, filename + '_best.pth')
+
 
 
 class AverageMeter(object):
@@ -226,9 +221,8 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def adjust_learning_rate(optimizer, epoch):
+def adjust_learning_rate(optimizer, epoch, lr):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-    global lr
     lr_ = lr * (0.5 ** (epoch // 8))
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr_

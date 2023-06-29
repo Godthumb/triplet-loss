@@ -24,3 +24,6 @@ class TripletDataSet(Dataset):
         
     def __len__(self):
         return len(self.database)
+    
+    def get_labels(self):
+        return [i[1] for i in self.database]
