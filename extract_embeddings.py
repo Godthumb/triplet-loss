@@ -1,12 +1,13 @@
-# from fastai.vision import *
 import torch
 from loss import TripletLoss
 import glob
-# from sklearn.manifold.t_sne import TSNE
+from dataset import TripletDataSet
+import torchvision.transforms as transforms
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import model
+import os
 
 class L2_norm(nn.Module):
     def __init__(self):
@@ -17,63 +18,64 @@ class L2_norm(nn.Module):
 
 
 if __name__ == '__main__':
-
-
     # choose cuda or cpu device
-    device = 1
+    device = 0
     torch.cuda.set_device(device)
 
     # dataloader
-    bs = 128
+    batch_size = 128
     sz = 28
-    # tfms = get_transforms()
-    # path = '/mnist_dataset/'
+    data_path = '/data/path'
 
-    # valid_names = np.load('mnist_data/val_names.npy')
-    # data = (ImageList.from_folder(path)
-    #         .split_by_files(valid_names)
-    #         .label_from_folder()
-    #         .transform(tfms, size=sz, padding_mode='reflection')
-    #         .databunch(num_workers=4, bs=bs)
-    #         .normalize(imagenet_stats)
-    #         )
-
-    # print(data)
-    model = model.resnet18(pretrained=True, num_classes=1000)
+    # load model
+    model = model.resnet18(pretrained=False, num_classes=1000)
     model.avgpool = nn.AdaptiveAvgPool2d(1)
     model.fc = nn.Sequential(nn.Linear(512, 128, bias=False), L2_norm())
-    # this is important, otherwise the triplet loss blows up
     checkpoint = torch.load('resnet18_triplet_base_best.pth')
     model.load_state_dict(checkpoint['state_dict'])
     model.cuda()
 
     # load data
-    folders = glob.glob(path + '*')
-
-    valid_names = np.load('mnist_data/val_names.npy')
-
+    traindir = os.path.join(data_path, 'train')
+    valdir = os.path.join(data_path, 'val')
     x_val = []
     y_val = []
     x_train = []
     y_train = []
-    n_class = 0
-    for folder in folders:
-        images = glob.glob(folder + '/*')
-        print(n_class)
-        for image in images:
-            name = image.split('/')[-1]
+    # n_class = 0
+ 
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+    val_transform = transforms.Compose([
+                                        transforms.Resize(256),
+                                        transforms.CenterCrop(224),
+                                        transforms.ToTensor(),
+                                        normalize,])
+    val_dataset = TripletDataSet(valdir, val_transform)
+    val_loader = torch.utils.data.DataLoader(val_dataset, 
+                                             batch_size=batch_size, 
+                                             shuffle=False,
+                                             num_workers=6)
+    
+    # use same transform as val
+    tr_dataset = TripletDataSet(traindir, val_transform)
+    tr_loader = torch.utils.data.DataLoader(tr_dataset, 
+                                             batch_size=batch_size, 
+                                             shuffle=False,
+                                             num_workers=6)
 
-            img = open_image(image)
-            pred = learn.predict(img)
-            embedding = pred[-1].detach().numpy()
+    for (input, target) in val_loader:
+        input_var, target_var = input.cuda(), target.cuda()
+        embedding = model(input_var)
+        x_val.append(embedding.cpu().numpy())
+        y_val.append(target_var.cpu().numpy())
 
-            if name in valid_names:
-                x_val.append(embedding)
-                y_val.append(n_class)
-            else:
-                x_train.append(embedding)
-                y_train.append(n_class)
-        n_class += 1
+    for (input, target) in tr_loader:
+        input_var, target_var = input.cuda(), target.cuda()
+        embedding = model(input_var)
+        x_train.append(embedding.cpu().numpy())
+        y_train.append(target_var.cpu().numpy())
+
 
     x_val, y_val = np.asarray(x_val), np.asarray(y_val)
     x_train, y_train = np.asarray(x_train), np.asarray(y_train)

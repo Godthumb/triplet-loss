@@ -6,22 +6,16 @@ import shutil
 import time
 import torch
 import torch.nn as nn
-import torch.nn.parallel
-import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data
 from collections import OrderedDict
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
-from PIL import ImageFile
-# ImageFile.LOAD_TRUNCATED_IMAGES = True
 from loss import TripletLoss
 import model
 import torch.nn.functional as F
-# import inceptionv3
-# import BilinearCNN
-# from zrmodel import LeNet32
+
 
 from dataset import TripletDataSet
 
