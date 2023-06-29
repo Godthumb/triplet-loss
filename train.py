@@ -22,7 +22,7 @@ def opt():
     parser.add_argument('--resume', type=str, default='')
     parser.add_argument('--num-classes', type=int, default=1000)
     parser.add_argument('--batch-size', type=int, default=32)
-    parser.add_argument('--data-loader-workers', type=int, default=6)
+    parser.add_argument('--n-workers', type=int, default=6)
     parser.add_argument('--lr', type=float, default=0.0001)
     parser.add_argument('--start-epoch', type=int, default=0)
     parser.add_argument('--epochs', type=int, default=40)
@@ -82,7 +82,7 @@ def main(opt):
                                                batch_size=opt.batch_size, 
                                                shuffle=False,
                                                sampler=ImbalancedDatasetSampler(train_dataset),
-                                               num_workers=6)
+                                               num_workers=opt.n_workers)
 
     val_transform = transforms.Compose([
                                         transforms.Resize(256),
@@ -91,9 +91,9 @@ def main(opt):
                                         normalize,])
     val_dataset = TripletDataSet(valdir, val_transform)
     val_loader = torch.utils.data.DataLoader(val_dataset, 
-                                             batch_size=opt.batch_size, 
+                                             batch_size=len(val_dataset), 
                                              shuffle=False,
-                                             num_workers=6)   
+                                             num_workers=opt.n_workers)   
 
     # define loss function (criterion) and pptimizer
     criterion_triple = TripletLoss(device=opt.device)
