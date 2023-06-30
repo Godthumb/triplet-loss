@@ -89,6 +89,7 @@ class Inception(nn.Module):
         self.basic_block1 =Basic_block(128, 256)
         self.basic_block2 =Basic_block(256, 512)
         self.gap = nn.AdaptiveAvgPool2d(1)
+        self.flatten = nn.Flatten(1)
         self.embedding_layer = Embedding_layer(512)
         self.norm = nn.Identity()
     
@@ -97,6 +98,7 @@ class Inception(nn.Module):
         x = self.inception_blockV2(x)# (b, 128, 28, 28)
         x = self.basic_block1(x)
         x = self.basic_block2(x)
+        x = self.flatten(self.gap(x))
         x = self.embedding_layer(x)
         x = self.norm(x)
         return x
