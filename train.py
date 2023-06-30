@@ -49,6 +49,7 @@ def main(opt):
         model.fc = nn.Sequential(nn.Linear(512, 128, bias=False), L2_norm())
     elif opt.arch.lower().startswith('inception'):
         model = Inception(3)
+        model.norm = L2_norm()
     else:
         raise ValueError('Wrong arch')
     model = model.to(opt.device)

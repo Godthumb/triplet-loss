@@ -90,6 +90,7 @@ class Inception(nn.Module):
         self.basic_block2 =Basic_block(256, 512)
         self.gap = nn.AdaptiveAvgPool2d(1)
         self.embedding_layer = Embedding_layer(512)
+        self.norm = nn.Identity()
     
     def forward(self, x):
         x = self.inception_blockV1(x)#  (b, 16*4, 112, 112)
@@ -97,6 +98,7 @@ class Inception(nn.Module):
         x = self.basic_block1(x)
         x = self.basic_block2(x)
         x = self.embedding_layer(x)
+        x = self.norm(x)
         return x
 
 if __name__ == '__main__':
@@ -104,4 +106,3 @@ if __name__ == '__main__':
     m = Inception(3)
     out = m(inp)
     print(out.shape)
-    
