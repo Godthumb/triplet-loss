@@ -14,11 +14,12 @@ import argparse
 from dataset import TripletDataSet
 from torchsampler import ImbalancedDatasetSampler
 from model import resnet18
+from inception import Inception
 
 def opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data-path', type=str, default=r'D:\BaiduNetdiskDownload\catsdogs')
-    parser.add_argument('--arch', type=str, default='resnet18_triplet')
+    parser.add_argument('--arch', type=str, default='inception_triplet')
     parser.add_argument('--resume', type=str, default='')
     parser.add_argument('--num-classes', type=int, default=1000)
     parser.add_argument('--batch-size', type=int, default=32)
@@ -46,9 +47,10 @@ def main(opt):
         model = resnet18(pretrained=True, num_classes=1000)
         model.avgpool = nn.AdaptiveAvgPool2d(1)
         model.fc = nn.Sequential(nn.Linear(512, 128, bias=False), L2_norm())
+    elif opt.arch.lower().startswith('inception'):
+        model = Inception(3)
     else:
         raise ValueError('Wrong arch')
-
     model = model.to(opt.device)
     # print (model)
 
