@@ -4,7 +4,8 @@ import torchvision.transforms as transforms
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
-import model
+from model import resnet18
+from inception import Inception
 import os
 from sklearn.manifold.t_sne import TSNE
 import matplotlib.pyplot as plt
@@ -27,9 +28,24 @@ if __name__ == '__main__':
     data_path = r'D:\BaiduNetdiskDownload\catsdogs'
 
     # load model
-    model = model.resnet18(pretrained=False, num_classes=1000)
-    model.avgpool = nn.AdaptiveAvgPool2d(1)
-    model.fc = nn.Sequential(nn.Linear(512, 128, bias=False), L2_norm())
+    # model = model.resnet18(pretrained=False, num_classes=1000)
+    # model.avgpool = nn.AdaptiveAvgPool2d(1)
+    # model.fc = nn.Sequential(nn.Linear(512, 128, bias=False), L2_norm())
+    # checkpoint = torch.load('resnet18_triplet_33_best.pth')
+    # model.load_state_dict(checkpoint['state_dict'])
+    # model.cuda()
+    # model.eval()
+    arch = 'resnet18_triplet'
+    if arch.lower().startswith('resnet'):
+        model = resnet18(pretrained=True, num_classes=1000)
+        model.avgpool = nn.AdaptiveAvgPool2d(1)
+        model.fc = nn.Sequential(nn.Linear(512, 128, bias=False), L2_norm())
+    elif arch.lower().startswith('inception'):
+        model = Inception(3)
+        model.norm = L2_norm()
+    else:
+        raise ValueError('Wrong arch')
+
     checkpoint = torch.load('resnet18_triplet_33_best.pth')
     model.load_state_dict(checkpoint['state_dict'])
     model.cuda()

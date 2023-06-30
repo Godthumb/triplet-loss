@@ -19,7 +19,7 @@ from inception import Inception
 def opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data-path', type=str, default=r'D:\BaiduNetdiskDownload\catsdogs')
-    parser.add_argument('--arch', type=str, default='inception_triplet')
+    parser.add_argument('--arch', type=str, default='resnet18_triplet')
     parser.add_argument('--resume', type=str, default='')
     parser.add_argument('--num-classes', type=int, default=1000)
     parser.add_argument('--batch-size', type=int, default=32)
